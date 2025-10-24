@@ -1,11 +1,43 @@
 <?php
+session_start();
+
 // Check if admin is logged in
 if(!isset($_SESSION['admin_logged_in'])) {
     header("Location: /admin");
     exit;
 }
 
-// ... (car and user deletion code remains the same)
+// Handle car deletion
+if(isset($_POST['delete_car'])) {
+    try {
+        $db = Database::getInstance()->getDb();
+        $stmt = $db->prepare("DELETE FROM cars WHERE _id = ?");
+        $stmt->execute([$_POST['car_id']]);
+        $_SESSION['success_message'] = "Car deleted successfully!";
+        header("Location: /admin/dashboard");
+        exit;
+    } catch (PDOException $e) {
+        $_SESSION['error_message'] = "Error deleting car: " . $e->getMessage();
+        header("Location: /admin/dashboard");
+        exit;
+    }
+}
+
+// Handle user deletion
+if(isset($_POST['delete_user'])) {
+    try {
+        $db = Database::getInstance()->getDb();
+        $stmt = $db->prepare("DELETE FROM user WHERE _id = ?");
+        $stmt->execute([$_POST['user_id']]);
+        $_SESSION['success_message'] = "User deleted successfully!";
+        header("Location: /admin/dashboard");
+        exit;
+    } catch (PDOException $e) {
+        $_SESSION['error_message'] = "Error deleting user: " . $e->getMessage();
+        header("Location: /admin/dashboard");
+        exit;
+    }
+}
 
 // Initialize variables
 $userCount = 0;
@@ -16,11 +48,12 @@ $recentRentals = [];
 $popularCars = [];
 $allCars = [];
 $allUsers = [];
+$tableName = '';
 
 try {
     $db = Database::getInstance()->getDb();
     
-    // Get counts - using correct table names
+    // Get counts
     $userCount = $db->query("SELECT COUNT(*) FROM user")->fetchColumn();
     $carCount = $db->query("SELECT COUNT(*) FROM cars")->fetchColumn();
     
@@ -30,63 +63,119 @@ try {
     // Get all users for management
     $allUsers = $db->query("SELECT * FROM user ORDER BY _id DESC")->fetchAll(PDO::FETCH_ASSOC);
     
-    // Check if transaction table exists by trying to query it - CHANGED rentals to transaction
+    // Check which rentals table exists
+    $rentalsTableExists = false;
+    
+    // Check if 'rentals' table exists first
     try {
-        $rentalCount = $db->query("SELECT COUNT(*) FROM transaction")->fetchColumn(); // CHANGED
+        $rentalCount = $db->query("SELECT COUNT(*) FROM rentals")->fetchColumn();
         $rentalsTableExists = true;
+        $tableName = 'rentals';
     } catch (PDOException $e) {
-        $rentalsTableExists = false;
-        $rentalCount = 0;
-        $totalRevenue = 0;
+        // If rentals doesn't exist, check if 'transaction' table exists
+        try {
+            $rentalCount = $db->query("SELECT COUNT(*) FROM transaction")->fetchColumn();
+            $rentalsTableExists = true;
+            $tableName = 'transaction';
+        } catch (PDOException $e2) {
+            $rentalsTableExists = false;
+            $rentalCount = 0;
+            $totalRevenue = 0;
+        }
     }
     
     if ($rentalsTableExists) {
-        // Get total revenue - CHANGED rentals to transaction
-        $totalRevenue = $db->query("SELECT SUM(amount) FROM transaction")->fetchColumn() ?: 0; // CHANGED
+        // Get total revenue
+        $totalRevenue = $db->query("SELECT SUM(amount) FROM $tableName")->fetchColumn() ?: 0;
         
-        // Get recent rentals - simplified query - CHANGED rentals to transaction
+        // Get recent rentals
         try {
-            $recentRentals = $db->query("
-                SELECT 
-                    t.*, 
-                    u.first_name, 
-                    u.last_name, 
-                    u.email, 
-                    c.name as car_name,
-                    t.time as start_time,  -- ADDED: alias for time
-                    'active' as status     -- ADDED: default status
-                FROM transaction t         -- CHANGED: rentals to transaction
-                JOIN user u ON t.user_id = u._id 
-                JOIN cars c ON t.car_id = c._id 
-                ORDER BY t.time DESC       -- CHANGED: start_time to time
-                LIMIT 5
-            ")->fetchAll(PDO::FETCH_ASSOC);
+            if ($tableName === 'rentals') {
+                $recentRentals = $db->query("
+                    SELECT 
+                        r.*, 
+                        u.first_name, 
+                        u.last_name, 
+                        u.email, 
+                        c.name as car_name,
+                        r.start_time,
+                        r.status
+                    FROM rentals r
+                    JOIN user u ON r.user_id = u._id 
+                    JOIN cars c ON r.car_id = c._id 
+                    ORDER BY r.created_at DESC, r.start_time DESC
+                    LIMIT 5
+                ")->fetchAll(PDO::FETCH_ASSOC);
+            } else { // transaction table
+                $recentRentals = $db->query("
+                    SELECT 
+                        t.*, 
+                        u.first_name, 
+                        u.last_name, 
+                        u.email, 
+                        c.name as car_name,
+                        t.time as start_time,
+                        'completed' as status
+                    FROM transaction t
+                    JOIN user u ON t.user_id = u._id 
+                    JOIN cars c ON t.car_id = c._id 
+                    ORDER BY t.time DESC
+                    LIMIT 5
+                ")->fetchAll(PDO::FETCH_ASSOC);
+            }
         } catch (PDOException $e) {
+            error_log("Recent rentals error: " . $e->getMessage());
             $recentRentals = [];
         }
         
-        // Get popular cars - CHANGED rentals to transaction
+        // Get popular cars
         try {
             $popularCars = $db->query("
-                SELECT c._id, c.name, c.pic, COUNT(t._id) as rental_count, c.stock
+                SELECT c._id, c.name, c.pic, COUNT(r._id) as rental_count, c.stock
                 FROM cars c 
-                LEFT JOIN transaction t ON c._id = t.car_id  -- CHANGED: rentals to transaction
-                GROUP BY c._id 
-                ORDER BY rental_count DESC 
+                LEFT JOIN $tableName r ON c._id = r.car_id
+                GROUP BY c._id, c.name, c.pic, c.stock
+                ORDER BY rental_count DESC, c.name ASC
                 LIMIT 3
             ")->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
+            error_log("Popular cars error: " . $e->getMessage());
             $popularCars = [];
         }
     }
     
 } catch (PDOException $e) {
     error_log("Dashboard error: " . $e->getMessage());
+    // Set default values to prevent errors
+    $userCount = 0;
+    $carCount = 0;
+    $rentalCount = 0;
+    $totalRevenue = 0;
+    $recentRentals = [];
+    $popularCars = [];
 }
 ?>
 
-
-<div class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Car Rental</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .stats-card:hover {
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+        }
+        .quick-action:hover {
+            transform: translateY(-3px);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
     <!-- Header -->
     <header class="bg-white shadow-lg border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -98,15 +187,13 @@ try {
                         </div>
                         <div>
                             <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                            <p class="text-sm text-gray-600">Welcome back, <?= $_SESSION['admin_name'] ?? 'Administrator' ?></p>
+                            <p class="text-sm text-gray-600">Welcome back, <?= htmlspecialchars($_SESSION['admin_name'] ?? 'Administrator') ?></p>
                         </div>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="hidden md:flex items-center space-x-6">
-                        <a href="/" class="text-gray-600 hover:text-blue-600 transition duration-200 flex items-center">
-                            <i class="fas fa-home mr-2"></i> Main Site
-                        </a>
+                        
                         <a href="/admin/users" class="text-gray-600 hover:text-blue-600 transition duration-200 flex items-center">
                             <i class="fas fa-users mr-2"></i> Users
                         </a>
@@ -126,7 +213,7 @@ try {
     <?php if(isset($_SESSION['success_message'])): ?>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
             <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative" role="alert">
-                <span class="block sm:inline"><?= $_SESSION['success_message'] ?></span>
+                <span class="block sm:inline"><?= htmlspecialchars($_SESSION['success_message']) ?></span>
                 <button type="button" class="absolute top-0 right-0 px-4 py-3" onclick="this.parentElement.style.display='none'">
                     <i class="fas fa-times"></i>
                 </button>
@@ -138,7 +225,7 @@ try {
     <?php if(isset($_SESSION['error_message'])): ?>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
             <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
-                <span class="block sm:inline"><?= $_SESSION['error_message'] ?></span>
+                <span class="block sm:inline"><?= htmlspecialchars($_SESSION['error_message']) ?></span>
                 <button type="button" class="absolute top-0 right-0 px-4 py-3" onclick="this.parentElement.style.display='none'">
                     <i class="fas fa-times"></i>
                 </button>
@@ -147,12 +234,14 @@ try {
         <?php unset($_SESSION['error_message']); ?>
     <?php endif; ?>
 
+   
+
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
         <!-- Stats Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Users Stat -->
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="stats-card bg-white rounded-2xl shadow-lg border border-gray-100">
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div>
@@ -170,7 +259,7 @@ try {
             </div>
 
             <!-- Cars Stat -->
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="stats-card bg-white rounded-2xl shadow-lg border border-gray-100">
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div>
@@ -188,7 +277,7 @@ try {
             </div>
 
             <!-- Rentals Stat -->
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="stats-card bg-white rounded-2xl shadow-lg border border-gray-100">
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div>
@@ -206,7 +295,7 @@ try {
             </div>
 
             <!-- Revenue Stat -->
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="stats-card bg-white rounded-2xl shadow-lg border border-gray-100">
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div>
@@ -237,7 +326,7 @@ try {
                         </h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Add Car -->
-                            <a href="/admin/add-car" class="group bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transition duration-300 transform hover:-translate-y-1 shadow-md">
+                            <a href="/admin/add-car" class="quick-action group bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-xl hover:from-blue-600 hover:to-blue-700 transition duration-300 shadow-md">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <i class="fas fa-plus-circle text-2xl mb-2"></i>
@@ -249,7 +338,7 @@ try {
                             </a>
 
                             <!-- Manage Users -->
-                            <a href="#all-users" class="group bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl hover:from-green-600 hover:to-green-700 transition duration-300 transform hover:-translate-y-1 shadow-md">
+                            <a href="#all-users" class="quick-action group bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl hover:from-green-600 hover:to-green-700 transition duration-300 shadow-md">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <i class="fas fa-users-cog text-2xl mb-2"></i>
@@ -261,7 +350,7 @@ try {
                             </a>
 
                             <!-- Manage Rentals -->
-                            <a href="/admin/rentals" class="group bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-xl hover:from-purple-600 hover:to-purple-700 transition duration-300 transform hover:-translate-y-1 shadow-md">
+                            <a href="/admin/rentals" class="quick-action group bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-xl hover:from-purple-600 hover:to-purple-700 transition duration-300 shadow-md">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <i class="fas fa-calendar-alt text-2xl mb-2"></i>
@@ -273,7 +362,7 @@ try {
                             </a>
 
                             <!-- View All Cars -->
-                            <a href="#all-cars" class="group bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition duration-300 transform hover:-translate-y-1 shadow-md">
+                            <a href="#all-cars" class="quick-action group bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition duration-300 shadow-md">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <i class="fas fa-car-side text-2xl mb-2"></i>
@@ -297,16 +386,45 @@ try {
                     </h2>
                     <div class="space-y-4">
                         <?php if(empty($popularCars)): ?>
-                            <div class="text-center py-8">
-                                <i class="fas fa-car text-gray-300 text-4xl mb-3"></i>
-                                <p class="text-gray-500 text-sm">No rental data yet</p>
-                            </div>
+                            <!-- Show sample cars when no rental data exists -->
+                            <?php 
+                            $sampleCars = array_slice($allCars, 0, 3);
+                            if(!empty($sampleCars)): 
+                            ?>
+                                <?php foreach($sampleCars as $car): ?>
+                                    <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                                        <div class="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg overflow-hidden">
+                                            <?php if($car['pic']): ?>
+                                                <img src="/<?= htmlspecialchars($car['pic']) ?>" alt="<?= htmlspecialchars($car['name']) ?>" class="w-full h-full object-cover">
+                                            <?php else: ?>
+                                                <div class="w-full h-full bg-blue-200 flex items-center justify-center">
+                                                    <i class="fas fa-car text-blue-600"></i>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 truncate"><?= htmlspecialchars($car['name']) ?></p>
+                                            <p class="text-xs text-gray-500">0 rentals (sample)</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xs <?= $car['stock'] > 0 ? 'text-green-600' : 'text-red-600' ?>">
+                                                <?= $car['stock'] ?> in stock
+                                            </p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div class="text-center py-8">
+                                    <i class="fas fa-car text-gray-300 text-4xl mb-3"></i>
+                                    <p class="text-gray-500 text-sm">No cars available</p>
+                                </div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <?php foreach($popularCars as $car): ?>
                                 <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
                                     <div class="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg overflow-hidden">
                                         <?php if($car['pic']): ?>
-                                            <img src="/<?= $car['pic'] ?>" alt="<?= $car['name'] ?>" class="w-full h-full object-cover">
+                                            <img src="/<?= htmlspecialchars($car['pic']) ?>" alt="<?= htmlspecialchars($car['name']) ?>" class="w-full h-full object-cover">
                                         <?php else: ?>
                                             <div class="w-full h-full bg-blue-200 flex items-center justify-center">
                                                 <i class="fas fa-car text-blue-600"></i>
@@ -314,7 +432,7 @@ try {
                                         <?php endif; ?>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-medium text-gray-900 truncate"><?= $car['name'] ?></p>
+                                        <p class="text-sm font-medium text-gray-900 truncate"><?= htmlspecialchars($car['name']) ?></p>
                                         <p class="text-xs text-gray-500"><?= $car['rental_count'] ?> rentals</p>
                                     </div>
                                     <div class="text-right">
@@ -384,7 +502,7 @@ try {
                                             <?= isset($user['created_at']) ? date('M j, Y', strtotime($user['created_at'])) : 'N/A' ?>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete user <?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?>? This action cannot be undone.');">
+                                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete user <?= htmlspecialchars(addslashes($user['first_name'] . ' ' . $user['last_name'])) ?>? This action cannot be undone.');">
                                                 <input type="hidden" name="user_id" value="<?= $user['_id'] ?>">
                                                 <button type="submit" name="delete_user" class="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded transition duration-200">
                                                     <i class="fas fa-trash mr-1"></i>Delete
@@ -427,7 +545,7 @@ try {
                             <div class="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition duration-300 overflow-hidden">
                                 <div class="h-48 bg-gray-200 overflow-hidden">
                                     <?php if($car['pic']): ?>
-                                        <img src="/<?= $car['pic'] ?>" alt="<?= $car['name'] ?>" class="w-full h-full object-cover hover:scale-105 transition duration-300">
+                                        <img src="/<?= htmlspecialchars($car['pic']) ?>" alt="<?= htmlspecialchars($car['name']) ?>" class="w-full h-full object-cover hover:scale-105 transition duration-300">
                                     <?php else: ?>
                                         <div class="w-full h-full bg-blue-100 flex items-center justify-center">
                                             <i class="fas fa-car text-blue-400 text-4xl"></i>
@@ -452,7 +570,7 @@ try {
                                             <span class="font-medium text-gray-700"><?= $car['type'] ?? 'N/A' ?></span>
                                         </div>
                                     </div>
-                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete <?= htmlspecialchars($car['name']) ?>? This action cannot be undone.');">
+                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete <?= htmlspecialchars(addslashes($car['name'])) ?>? This action cannot be undone.');">
                                         <input type="hidden" name="car_id" value="<?= $car['_id'] ?>">
                                         <button type="submit" name="delete_car" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-medium transition duration-200 flex items-center justify-center">
                                             <i class="fas fa-trash mr-2"></i>
@@ -499,6 +617,7 @@ try {
                                     <div>
                                         <p class="font-semibold text-gray-900 text-sm"><?= htmlspecialchars($rental['car_name']) ?></p>
                                         <p class="text-xs text-gray-500">by <?= htmlspecialchars($rental['first_name'] . ' ' . $rental['last_name']) ?></p>
+                                        <p class="text-xs text-gray-400">Status: <?= $rental['status'] ?? 'completed' ?></p>
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -528,4 +647,14 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         }
     });
 });
+
+// Auto-hide messages after 5 seconds
+setTimeout(() => {
+    const messages = document.querySelectorAll('.bg-green-100, .bg-red-100');
+    messages.forEach(message => {
+        message.style.display = 'none';
+    });
+}, 5000);
 </script>
+</body>
+</html>

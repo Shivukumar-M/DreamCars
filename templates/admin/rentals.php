@@ -10,6 +10,63 @@ $db = Database::getInstance()->getDb();
 // Initialize variables
 $rentals = [];
 $errorMessage = '';
+$successMessage = '';
+
+// Handle form submissions
+if($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if(isset($_POST['rental_id']) && isset($_POST['action'])) {
+        $rental_id = $_POST['rental_id'];
+        $action = $_POST['action'];
+        
+        try {
+            switch($action) {
+                case 'complete':
+                    $stmt = $db->prepare("UPDATE rentals SET status = 'completed', end_time = NOW() WHERE _id = ?");
+                    $stmt->execute([$rental_id]);
+                    $successMessage = "Rental #$rental_id marked as completed!";
+                    break;
+                    
+                case 'cancel':
+                    $stmt = $db->prepare("UPDATE rentals SET status = 'cancelled', end_time = NOW() WHERE _id = ?");
+                    $stmt->execute([$rental_id]);
+                    
+                    // Also update car stock when cancelled
+                    $rentalStmt = $db->prepare("SELECT car_id FROM rentals WHERE _id = ?");
+                    $rentalStmt->execute([$rental_id]);
+                    $rental = $rentalStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if($rental) {
+                        $updateStmt = $db->prepare("UPDATE cars SET stock = stock + 1 WHERE _id = ?");
+                        $updateStmt->execute([$rental['car_id']]);
+                    }
+                    
+                    $successMessage = "Rental #$rental_id cancelled successfully!";
+                    break;
+                    
+                case 'delete':
+                    // Get car_id first to update stock
+                    $rentalStmt = $db->prepare("SELECT car_id FROM rentals WHERE _id = ?");
+                    $rentalStmt->execute([$rental_id]);
+                    $rental = $rentalStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if($rental) {
+                        // Update car stock
+                        $updateStmt = $db->prepare("UPDATE cars SET stock = stock + 1 WHERE _id = ?");
+                        $updateStmt->execute([$rental['car_id']]);
+                        
+                        // Delete the rental
+                        $deleteStmt = $db->prepare("DELETE FROM rentals WHERE _id = ?");
+                        $deleteStmt->execute([$rental_id]);
+                        $successMessage = "Rental #$rental_id deleted successfully!";
+                    }
+                    break;
+            }
+        } catch (PDOException $e) {
+            error_log("Rental action error: " . $e->getMessage());
+            $errorMessage = "Error processing request: " . $e->getMessage();
+        }
+    }
+}
 
 try {
     // Get rentals with user and car information from RENTALS table
@@ -94,8 +151,21 @@ $cancelledRentals = count(array_filter($rentals, function($rental) {
                 <div class="flex items-center">
                     <i class="fas fa-exclamation-circle text-red-500 text-2xl mr-3"></i>
                     <div>
-                        <h3 class="text-lg font-medium text-red-800">Database Error</h3>
+                        <h3 class="text-lg font-medium text-red-800">Error</h3>
                         <p class="text-red-700 mt-1"><?= htmlspecialchars($errorMessage) ?></p>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if($successMessage): ?>
+            <!-- Success Message -->
+            <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                <div class="flex items-center">
+                    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+                    <div>
+                        <h3 class="text-lg font-medium text-green-800">Success</h3>
+                        <p class="text-green-700 mt-1"><?= htmlspecialchars($successMessage) ?></p>
                     </div>
                 </div>
             </div>
@@ -338,15 +408,17 @@ $cancelledRentals = count(array_filter($rentals, function($rental) {
                             <!-- Actions -->
                             <div class="mt-4 flex space-x-2">
                                 <?php if($status == 'active'): ?>
-                                    <form method="POST" action="/admin/complete-rental" class="flex-1">
+                                    <form method="POST" class="flex-1">
                                         <input type="hidden" name="rental_id" value="<?= $rental['_id'] ?>">
+                                        <input type="hidden" name="action" value="complete">
                                         <button type="submit" 
                                                 class="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition duration-200 flex items-center justify-center">
                                             <i class="fas fa-check mr-1"></i>Complete
                                         </button>
                                     </form>
-                                    <form method="POST" action="/admin/cancel-rental" class="flex-1">
+                                    <form method="POST" class="flex-1">
                                         <input type="hidden" name="rental_id" value="<?= $rental['_id'] ?>">
+                                        <input type="hidden" name="action" value="cancel">
                                         <button type="submit" 
                                                 class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition duration-200 flex items-center justify-center"
                                                 onclick="return confirm('Are you sure you want to cancel this rental?')">
@@ -361,8 +433,9 @@ $cancelledRentals = count(array_filter($rentals, function($rental) {
                                             <?= ucfirst($status) ?>
                                         </span>
                                     </div>
-                                    <form method="POST" action="/admin/delete-rental" class="flex-1">
+                                    <form method="POST" class="flex-1">
                                         <input type="hidden" name="rental_id" value="<?= $rental['_id'] ?>">
+                                        <input type="hidden" name="action" value="delete">
                                         <button type="submit" 
                                                 class="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition duration-200 flex items-center justify-center"
                                                 onclick="return confirm('Are you sure you want to delete this rental record? This cannot be undone.')">

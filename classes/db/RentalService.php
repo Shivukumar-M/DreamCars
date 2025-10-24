@@ -40,15 +40,40 @@ class RentalService {
     }
 
     public static function removeRental($id) {
-        $query = "DELETE from transaction WHERE `_id` = :id";
+        $db = Database::getInstance()->getDb();
+        
+        try {
+            $db->beginTransaction();
 
-        $stmt = Database::getInstance()
-            ->getDb()
-            ->prepare($query);
+            // Get rental details first to update car stock
+            $stmt = $db->prepare("SELECT car_id FROM rentals WHERE _id = ?");
+            $stmt->execute([$id]);
+            $rental = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $stmt->bindParam(":id", $id);
-        $stmt->execute();
+            if ($rental) {
+                // Update car stock
+                $updateStmt = $db->prepare("UPDATE cars SET stock = stock + 1 WHERE _id = ?");
+                $updateStmt->execute([$rental['car_id']]);
 
+                // Delete from rentals table
+                $deleteStmt = $db->prepare("DELETE FROM rentals WHERE _id = ?");
+                $deleteStmt->execute([$id]);
+            }
+
+            // Also delete from transaction table (existing logic)
+            $query = "DELETE from transaction WHERE `_id` = :id";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(":id", $id);
+            $stmt->execute();
+
+            $db->commit();
+            return true;
+
+        } catch (PDOException $e) {
+            $db->rollBack();
+            error_log("Rental removal error: " . $e->getMessage());
+            return false;
+        }
     }
 
     public static function getRentalsForUser($id) {
@@ -76,6 +101,35 @@ class RentalService {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // NEW METHOD: Get all rentals from rentals table for admin dashboard
+    public static function getAllRentals() {
+        $db = Database::getInstance()->getDb();
+        
+        $stmt = $db->query("
+            SELECT 
+                r._id,
+                r.user_id,
+                r.car_id,
+                r.mode,
+                r.value,
+                r.amount,
+                r.start_time,
+                r.end_time,
+                r.status,
+                r.created_at,
+                u.first_name,
+                u.last_name,
+                u.email,
+                c.name as car_name,
+                c.pic as car_image
+            FROM rentals r
+            LEFT JOIN user u ON r.user_id = u._id
+            LEFT JOIN cars c ON r.car_id = c._id
+            ORDER BY r.created_at DESC
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public static function insertRental($transactionArray) {
         $fields = ['user_id', 'car_id', 'mode', 'value'];
 
@@ -90,8 +144,8 @@ class RentalService {
             $stmt->execute();
 
             if($stmt->fetchColumn() > 0){
+                // 1. Insert into transaction table (existing logic)
                 $query = 'INSERT INTO transaction(' . implode(',', $fields) . ') VALUES(:' . implode(',:', $fields) . ')';
-
                 $stmt = $db->prepare($query);
 
                 $prepared_array = array();
@@ -100,7 +154,42 @@ class RentalService {
                 }
 
                 $stmt->execute($prepared_array);
-                $id = Database::getInstance()->getDb()->lastInsertId();
+                $transactionId = Database::getInstance()->getDb()->lastInsertId();
+
+                // 2. Insert into rentals table (NEW - for admin dashboard)
+                // Calculate amount based on mode and car rates
+                $car = self::getCarDetails($transactionArray['car_id']);
+                $amount = 0;
+                
+                switch($transactionArray['mode']) {
+                    case 'hour':
+                        $amount = $car['rate_by_hour'] * $transactionArray['value'];
+                        break;
+                    case 'day':
+                        $amount = $car['rate_by_day'] * $transactionArray['value'];
+                        break;
+                    case 'km':
+                        $amount = $car['rate_by_km'] * $transactionArray['value'];
+                        break;
+                }
+
+                $rentalStmt = $db->prepare("
+                    INSERT INTO rentals (user_id, car_id, mode, value, amount, start_time, status, created_at) 
+                    VALUES (?, ?, ?, ?, ?, NOW(), 'active', NOW())
+                ");
+                $rentalStmt->execute([
+                    $transactionArray['user_id'],
+                    $transactionArray['car_id'],
+                    $transactionArray['mode'],
+                    $transactionArray['value'],
+                    $amount
+                ]);
+                $rentalId = $db->lastInsertId();
+
+                // 3. Update car stock
+                $updateStmt = $db->prepare("UPDATE cars SET stock = stock - 1 WHERE _id = ?");
+                $updateStmt->execute([$transactionArray['car_id']]);
+
             } else {
                 return 0;
             }
@@ -111,7 +200,7 @@ class RentalService {
             return $ex->getMessage();
         }
 
-        return $id;
+        return $rentalId; // Return rental ID for success message
     }
 
 }

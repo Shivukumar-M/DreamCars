@@ -135,6 +135,10 @@ $imagePath = !empty($car['pic']) ? $imagePath : '/images/car-placeholder.jpg';
                 <div class="p-6">
                     <?php if ($car['stock'] > 0): ?>
                     <form class="space-y-6" method="post" action="">
+                        <!-- CRITICAL: Add these hidden inputs for booking processing -->
+                        <input type="hidden" name="car_id" value="<?= $car['_id'] ?>">
+                        <input type="hidden" id="calculated_amount" name="amount" value="<?= $estimatedAmounts['hour'] ?>">
+                        
                         <!-- Hidden rate inputs -->
                         <input type="hidden" id="hour_rate" value="<?= $car['rate_by_hour'] ?>">
                         <input type="hidden" id="day_rate" value="<?= $car['rate_by_day'] ?>">
@@ -316,6 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const quantityLabel = document.getElementById('quantity-label');
     const quantitySummaryLabel = document.getElementById('quantity-summary-label');
     const currentRateInput = document.getElementById('current_rate');
+    const calculatedAmountInput = document.getElementById('calculated_amount'); // ADDED
 
     // Get rate values
     const hourRate = parseFloat(document.getElementById('hour_rate').value) || 0;
@@ -346,8 +351,9 @@ document.addEventListener('DOMContentLoaded', function() {
         totalDisplay.textContent = total.toFixed(2);
         durationDisplay.textContent = quantity;
         
-        // Update hidden rate input for form submission
+        // Update hidden inputs for form submission
         currentRateInput.value = rate;
+        calculatedAmountInput.value = total; // ADDED - Critical for rentals table
     }
 
     function updateUnitDisplay(mode) {

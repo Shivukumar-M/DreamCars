@@ -144,9 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <a href="/admin/dashboard" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-200">
                         <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
                     </a>
-                    <a href="/" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-200">
-                        <i class="fas fa-home mr-1"></i>Main Site
-                    </a>
+                    
                 </div>
             </div>
         </div>
