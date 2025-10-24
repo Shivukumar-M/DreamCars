@@ -18,10 +18,20 @@ class Rentals extends BasicPage {
             }
         }
 
+        $rentals = RentalService::getRentalsForUser($user_id);
+        
+        // Calculate and add amount for each rental if not already set
+        foreach ($rentals as &$rental) {
+            if (!isset($rental['amount'])) {
+                $rate = $rental["rate_by_" . $rental["mode"]] ?? 0;
+                $value = $rental['value'] ?? 0;
+                $rental['amount'] = $rate * $value;
+            }
+        }
+
         Renderer::render("rentals.php", [
             'user' => $user,
-            'rentals' => RentalService::getRentalsForUser($user_id)
+            'rentals' => $rentals
         ]);
     }
-
 }

@@ -1,32 +1,41 @@
-<nav class="navbar navbar-default navbar-fixed-top" style="margin-bottom: 60px;">
-    <div class="container-fluid">
-        <div class="navbar-header">
-            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse">
-                <span class="sr-only">Toggle navigation</span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-            </button>
-            <a class="navbar-brand" href="../"><img src="/images/car.svg" height="40px" style="margin: -10px;" alt="Carjack" /></a>
-        </div>
-        <div class="collapse navbar-collapse" id="navbar-collapse">
-            <ul class="nav navbar-nav">
+<nav class="bg-white shadow-lg fixed top-0 w-full z-50">
+    <div class="max-w-7xl mx-auto px-4">
+        <div class="flex justify-between items-center h-16">
+            <!-- Logo -->
+            <div class="flex items-center">
+                <a href="/" class="flex items-center space-x-2">
+                    <i class="fas fa-car text-blue-600 text-2xl"></i>
+                    <span class="text-xl font-bold text-gray-800">RentDream</span>
+                </a>
+            </div>
 
-                <li><a href="/">Home</a></li>
-                <li><a href="/rentals">Rentals</a></li>
-            </ul>
-            <ul class="nav navbar-nav navbar-right">
+            <!-- Navigation Links -->
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="/" class="text-gray-600 hover:text-blue-600 font-medium transition duration-200">Home</a>
+                <a href="/rentals" class="text-gray-600 hover:text-blue-600 font-medium transition duration-200">My Rentals</a>
+            </div>
+
+            <!-- Auth Buttons -->
+            <div class="flex items-center space-x-4">
                 <?php if($loginInfo == 0) { ?>
-                    <li ><a id = "register-link" href = "/register" ><button style = "margin-top: -7px; margin-bottom: -7px; margin-right: -20px""  class="btn btn-primary" >Register</button ></a ></li >
-                    <li ><a id = "signin-link" href = "/signin" ><button style = "margin-top: -7px; margin-bottom: -7px;" class="btn btn-info" >Signin</button ></a ></li >
+                    <a href="/register" class="btn-primary">Register</a>
+                    <a href="/signin" class="btn-secondary">Sign In</a>
                 <?php } else { ?>
-                    <li ><a id = "logout-link" href = "/profile" ><button style = "margin-top: -7px; margin-bottom: -7px; margin-right: -20px"  class="btn btn-info" >Profile</button ></a ></li >
-                    <li ><a id = "logout-link" href = "/logout" ><button style = "margin-top: -7px; margin-bottom: -7px;"  class="btn btn-danger" >Logout</button ></a ></li >
+                    <a href="/profile" class="text-gray-600 hover:text-blue-600 font-medium transition duration-200">
+                        <i class="fas fa-user-circle mr-1"></i>Profile
+                    </a>
+                    <a href="/logout" class="btn-danger">Logout</a>
                 <?php } ?>
-            </ul>
+            </div>
+
+            <!-- Mobile menu button -->
+            <div class="md:hidden">
+                <button type="button" class="text-gray-600 hover:text-blue-600">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
         </div>
-    </div>
-    <div id="progress-bar" class="progress" style="display:none;margin: 0px; padding: 0px">
-        <div class="indeterminate"></div>
     </div>
 </nav>
+
+<div class="h-16"></div> <!-- Spacer for fixed navbar -->

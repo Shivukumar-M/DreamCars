@@ -8,7 +8,11 @@ class Logout extends BasicPage {
         Utils::logout();
         $this->refreshStatus();
 
-        Renderer::render("logout.php");
+        // Redirect to home page
+        header('Location: /');
+        exit();
+        
+        // The render call is removed since we're redirecting
     }
 
 }

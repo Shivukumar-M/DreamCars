@@ -52,24 +52,29 @@ class Register extends BasicPage {
         $this->setTitle('Register');
 
         $errors = array();
-        $success = "";
         if($_SERVER['REQUEST_METHOD'] == 'POST') {
             $errors = $this->verify();
 
             if(count($errors) == 0) {
                 $result = User::insertUser($_POST);
-                if(is_int($result) && $result != 0)
-                    $success = "Successfully registered!";
-                else if(is_int($result) && $result == 0)
+                if(is_int($result) && $result != 0) {
+                    // Set flash message and redirect to signin
+                    $_SESSION['flash_message'] = 'Successfully registered! Please sign in.';
+                    $_SESSION['flash_type'] = 'success';
+                    header("Location: /signin");
+                    exit;
+                } else if(is_int($result) && $result == 0) {
                     $errors[] = "An Error Occurred!";
-                else {
+                } else {
                     if(strstr($result, '23000') && strstr($result, 'email'))
                         $errors[] = 'User with this email already exists!';
                     else if(strstr($result, '23000') && strstr($result, 'username'))
                         $errors[] = 'Username is already registered!';
                     else {
-                        $this->values = array();
-                        $success = "Successfully registered!";
+                        $_SESSION['flash_message'] = 'Successfully registered! Please sign in.';
+                        $_SESSION['flash_type'] = 'success';
+                        header("Location: /signin");
+                        exit;
                     }
                 }
             }
@@ -78,8 +83,7 @@ class Register extends BasicPage {
         Renderer::render('register.php', [
             'errors' => $errors,
             'defaults' => $this->defaults,
-            'values' => $this->values,
-            'success' => $success
+            'values' => $this->values
         ]);
     }
 }

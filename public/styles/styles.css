@@ -17,3 +17,13 @@ body {
 .nav-tabs, .nav-pills {
     text-align:center;
 }
+.car-card {
+    display: inline-block;
+    width: 220px;
+    margin: 10px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    text-align: center;
+}

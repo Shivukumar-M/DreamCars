@@ -28,20 +28,20 @@ class Renderer {
             }
         }
 
-    require_once("../templates/components/header.php");
+        require_once("../templates/components/header.php");
 
-    echo "\n<div class=\"container\">\n";
+        echo "\n<main class=\"min-h-screen\">\n";
 
-    if (file_exists($contentFileFullPath)) {
-        require_once($contentFileFullPath);
-    } else {
-        require_once("../templates/error.php");
+        if (file_exists($contentFileFullPath)) {
+            require_once($contentFileFullPath);
+        } else {
+            require_once("../templates/error.php");
+        }
+
+        // close main div
+        echo "</main>\n";
+
+        require_once("../templates/components/footer.php");
     }
-
-    // close container div
-    echo "</div>\n";
-
-    require_once("../templates/components/footer.php");
-}
 
 }

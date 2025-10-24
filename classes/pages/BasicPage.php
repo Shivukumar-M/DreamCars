@@ -10,8 +10,9 @@ abstract class BasicPage {
     private $isAdmin;
 
     public function __construct(){
-        session_start();
-
+        // Session is already started in index.php, so don't start it here
+        // This prevents "session already started" warnings
+        
         $this->refreshStatus();
     }
 
