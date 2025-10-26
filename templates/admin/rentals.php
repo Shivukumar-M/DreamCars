@@ -115,29 +115,61 @@ $cancelledRentals = count(array_filter($rentals, function($rental) {
 }));
 ?>
 
-
-<div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Rentals - Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Hide the main website navbar in admin panel */
+        nav, .navbar, header:not(.admin-header) {
+            display: none !important;
+        }
+        
+        /* Ensure admin header stays visible */
+        .admin-header, header.bg-white {
+            display: block !important;
+        }
+        
+        /* Add padding to account for fixed header */
+        body {
+            padding-top: 80px;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <!-- Admin Header - THIS STAYS VISIBLE -->
+    <header class="bg-white shadow-lg border-b border-gray-200 w-full z-50 fixed top-0 left-0 right-0">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-6">
-                <div class="flex items-center">
-                    <a href="/admin/dashboard" class="text-blue-600 hover:text-blue-500 mr-4">
-                        <i class="fas fa-arrow-left"></i>
-                    </a>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Manage Rentals</h1>
-                        <p class="text-sm text-gray-600">View and manage all rental transactions</p>
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-blue-600 p-2 rounded-lg">
+                            <i class="fas fa-shield-alt text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Manage Rentals</h1>
+                            <p class="text-sm text-gray-600">Admin Panel</p>
+                        </div>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <?php if($totalRentals > 0): ?>
-                    <span class="text-sm text-gray-600">
-                        Total Rentals: <span class="font-semibold"><?= $totalRentals ?></span>
-                    </span>
-                    <?php endif; ?>
-                    <a href="/admin/dashboard" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-200">
-                        <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
+                    <div class="hidden md:flex items-center space-x-6">
+                        <a href="/admin/dashboard" class="text-gray-600 hover:text-blue-600 transition duration-200 flex items-center">
+                            <i class="fas fa-tachometer-alt mr-2"></i> Dashboard
+                        </a>
+                        <a href="/admin/users" class="text-gray-600 hover:text-blue-600 transition duration-200 flex items-center">
+                            <i class="fas fa-users mr-2"></i> Users
+                        </a>
+                        <a href="/admin/rentals" class="text-blue-600 font-semibold transition duration-200 flex items-center">
+                            <i class="fas fa-calendar-alt mr-2"></i> Rentals
+                        </a>
+                    </div>
+                    <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition duration-200 flex items-center shadow-md">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
                     </a>
                 </div>
             </div>
@@ -495,3 +527,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+</body>
+</html>

@@ -2,6 +2,10 @@
 
 class AdminDashboard extends BasicPage {
 
+    public function __construct() {
+        parent::__construct(true); // Set as admin panel
+    }
+
     public function render() {
         // Check if admin is logged in
         if (!isset($_SESSION['admin_logged_in'])) {
@@ -12,7 +16,8 @@ class AdminDashboard extends BasicPage {
         $this->setTitle('Admin Dashboard - RentDream');
 
         Renderer::render("admin/dashboard.php", [
-            'includeNavbar' => false 
+            'includeNavbar' => false,
+            'isAdminPanel' => true
         ]);
     }
 

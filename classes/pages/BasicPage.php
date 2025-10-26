@@ -8,11 +8,10 @@ require_once('../classes/Utils.php');
 abstract class BasicPage {
     private $loginInfo;
     private $isAdmin;
+    private $isAdminPanel;
 
-    public function __construct(){
-        // Session is already started in index.php, so don't start it here
-        // This prevents "session already started" warnings
-        
+    public function __construct($isAdminPanel = false){
+        $this->isAdminPanel = $isAdminPanel;
         $this->refreshStatus();
     }
 
@@ -21,6 +20,7 @@ abstract class BasicPage {
         $this->isAdmin = User::isUserAdmin($this->loginInfo);
         Renderer::inject('loginInfo', $this->loginInfo);
         Renderer::inject('isAdmin', $this->isAdmin);
+        Renderer::inject('isAdminPanel', $this->isAdminPanel);
     }
 
     public function setTitle($title) {
@@ -35,6 +35,9 @@ abstract class BasicPage {
         return $this->isAdmin;
     }
 
-    public abstract function render();
+    public function isAdminPanel(){
+        return $this->isAdminPanel;
+    }
 
+    public abstract function render();
 }

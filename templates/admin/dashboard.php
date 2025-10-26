@@ -165,6 +165,19 @@ try {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        
+
+
+         /* Hide the main website navbar in admin panel */
+         nav, .navbar, header:not(.admin-header) {
+        display: none !important;
+    }
+        
+        /* Ensure admin header stays visible */
+        .admin-header, header.bg-white {
+            display: block !important;
+        }
+        
         .stats-card:hover {
             transform: translateY(-5px);
             transition: all 0.3s ease;
@@ -173,11 +186,14 @@ try {
             transform: translateY(-3px);
             transition: all 0.3s ease;
         }
+    
+
+
     </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-    <!-- Header -->
-    <header class="bg-white shadow-lg border-b border-gray-200">
+    <!-- Admin Header - THIS STAYS VISIBLE -->
+   <header class="bg-white shadow-lg border-b border-gray-200 w-full z-50 fixed top-0 left-0 right-0">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center space-x-4">
@@ -193,7 +209,6 @@ try {
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="hidden md:flex items-center space-x-6">
-                        
                         <a href="/admin/users" class="text-gray-600 hover:text-blue-600 transition duration-200 flex items-center">
                             <i class="fas fa-users mr-2"></i> Users
                         </a>
