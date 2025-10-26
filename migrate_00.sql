@@ -76,3 +76,20 @@ AFTER DELETE
   BEGIN
     UPDATE cars SET stock = stock + 1 WHERE _id = OLD.car_id;
   END;
+
+
+CREATE TABLE rentals (
+    _id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    car_id INT NOT NULL,
+    mode ENUM('km', 'day', 'hour') NOT NULL,
+    value INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    start_time TIMESTAMP DEFAULT NOW(),
+    end_time TIMESTAMP NULL,
+    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
+    FOREIGN KEY (user_id) REFERENCES user(_id),
+    FOREIGN KEY (car_id) REFERENCES cars(_id)
+);
